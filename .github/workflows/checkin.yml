@@ -12,8 +12,19 @@ on:
 
 jobs:
   checkin:
+    name: 签到分组 ${{ matrix.group }}
     runs-on: ubuntu-latest
     environment: production
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - group: 1
+            accounts_secret: ANYROUTER_ACCOUNTS_1
+          - group: 2
+            accounts_secret: ANYROUTER_ACCOUNTS_2
+          - group: 3
+            accounts_secret: ANYROUTER_ACCOUNTS_3
     env:
       PYTHONIOENCODING: utf-8
       PYTHONUNBUFFERED: 1
@@ -67,18 +78,18 @@ jobs:
       uses: actions/cache@v5
       with:
         path: balance_hash.txt
-        key: balance-hash-${{ github.ref_name }}-${{ github.run_id }}
+        key: balance-hash-group-${{ matrix.group }}-${{ github.ref_name }}-${{ github.run_id }}
         restore-keys: |
-          balance-hash-${{ github.ref_name }}-
-          balance-hash-
+          balance-hash-group-${{ matrix.group }}-${{ github.ref_name }}-
+          balance-hash-group-${{ matrix.group }}-
 
     - name: 恢复浏览器 Profile 缓存
       uses: actions/cache@v5
       with:
         path: .browser_profiles
-        key: browser-profiles-${{ runner.os }}-v1
+        key: browser-profiles-${{ runner.os }}-group-${{ matrix.group }}-v1
         restore-keys: |
-          browser-profiles-${{ runner.os }}-
+          browser-profiles-${{ runner.os }}-group-${{ matrix.group }}-
 
     - name: 配置代理
       env:
@@ -88,13 +99,13 @@ jobs:
         PROXY_REQUIRED: false
       run: bash scripts/setup_mihomo_proxy.sh
 
-    - name: 执行签到
+    - name: 执行签到（分组 ${{ matrix.group }}）
       env:
         DEBUG_MODE: ${{ env.DEBUG_MODE }}
         CHECKIN_HEADLESS: false
         CHECKIN_HUMANIZE: true
         CHECKIN_WAIT_TIMEOUT_MS: 120000
-        ANYROUTER_ACCOUNTS: ${{ secrets.ANYROUTER_ACCOUNTS }}
+        ANYROUTER_ACCOUNTS: ${{ secrets[matrix.accounts_secret] }}
         PROVIDERS: ${{ secrets.PROVIDERS }}
         DINGDING_WEBHOOK: ${{ secrets.DINGDING_WEBHOOK }}
         EMAIL_USER: ${{ secrets.EMAIL_USER }}
@@ -123,7 +134,7 @@ jobs:
         HTTPS_PROXY: ''
       uses: actions/upload-artifact@v4
       with:
-        name: checkin-screenshots-${{ github.run_id }}
+        name: checkin-screenshots-group-${{ matrix.group }}-${{ github.run_id }}
         path: checkin_screenshots/
         if-no-files-found: warn
         include-hidden-files: true
@@ -137,8 +148,9 @@ jobs:
       if: always()
       run: |
         echo "签到任务执行完成"
+        echo "签到分组: ${{ matrix.group }}"
         echo "时间: $(date)"
         if [ "${DEBUG_MODE}" = "true" ] && [ -d checkin_screenshots ] && [ "$(ls -A checkin_screenshots 2>/dev/null)" ]; then
-          echo "调试截图已上传为 artifact: checkin-screenshots-${{ github.run_id }}"
+          echo "调试截图已上传为 artifact: checkin-screenshots-group-${{ matrix.group }}-${{ github.run_id }}"
           ls -la checkin_screenshots/
         fi
